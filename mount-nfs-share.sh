@@ -146,6 +146,30 @@ wait_for_apt_lock() {
     done
 }
 
+wait_for_rpm_lock() {
+    local max_wait=120
+    local waited=0
+    while sudo fuser /var/lib/rpm/.rpm.lock >/dev/null 2>&1 || \
+          sudo fuser /var/lib/dnf/lock >/dev/null 2>&1 || \
+          sudo fuser /var/run/yum.pid >/dev/null 2>&1; do
+        if [ $waited -ge $max_wait ]; then
+            echo "[WARNING] Timed out waiting for rpm lock after ${max_wait}s. Proceeding anyway."
+            break
+        fi
+        echo "[INFO] Waiting for rpm/yum/dnf lock to be released... (${waited}s)"
+        sleep 5
+        waited=$((waited + 5))
+    done
+}
+
+wait_for_pkg_lock() {
+    case "$PKG_MGR" in
+        apt) wait_for_apt_lock ;;
+        yum|dnf) wait_for_rpm_lock ;;
+        # zypper doesn't typically have boot-time lock contention
+    esac
+}
+
 install_microsoft_repo() {
     echo "[INFO] Downloading Microsoft repository configuration..."
     local filename
@@ -162,6 +186,7 @@ install_microsoft_repo() {
             rm -f "$filename"
             ;;
         rpm)
+            wait_for_rpm_lock
             sudo rpm -i "$filename"
             rm -f "$filename"
             ;;
@@ -187,6 +212,7 @@ install_aznfs() {
             ;;
         yum)
             install_microsoft_repo
+            wait_for_rpm_lock
             sudo yum update -y
             sudo yum install -y aznfs
             ;;
@@ -197,6 +223,7 @@ install_aznfs() {
             ;;
         dnf)
             install_microsoft_repo
+            wait_for_rpm_lock
             # dnf check-update returns exit code 100 when updates are available
             sudo dnf -y check-update --refresh || true
             sudo dnf install -y aznfs
@@ -219,12 +246,14 @@ install_nfs_client() {
             sudo apt-get install -y "$NFS_CLIENT_PKG"
             ;;
         yum)
+            wait_for_rpm_lock
             sudo yum install -y "$NFS_CLIENT_PKG"
             ;;
         zypper)
             sudo zypper --non-interactive install "$NFS_CLIENT_PKG"
             ;;
         dnf)
+            wait_for_rpm_lock
             sudo dnf install -y "$NFS_CLIENT_PKG"
             ;;
     esac
