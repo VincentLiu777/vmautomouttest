@@ -75,7 +75,7 @@
     "provisionedStorageGiB": {
       "type": "int",
       "defaultValue": 1024,
-      "minValue": 100,
+      "minValue": 32,
       "maxValue": 102400,
       "metadata": {
         "description": "File share provisioned storage in GiB (100 - 102400)."
