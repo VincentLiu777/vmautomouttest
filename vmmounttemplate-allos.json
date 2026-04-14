@@ -1,0 +1,616 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "resourcePrefix": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 20,
+      "metadata": {
+        "description": "Prefix for all resource names. Use lowercase letters, numbers, and hyphens only."
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "eastasia",
+      "metadata": {
+        "description": "Azure region for all resources."
+      }
+    },
+    "authType": {
+      "type": "string",
+      "defaultValue": "password",
+      "allowedValues": [
+        "password",
+        "sshPublicKey"
+      ],
+      "metadata": {
+        "description": "VM authentication type."
+      }
+    },
+    "adminPassword": {
+      "type": "secureString",
+      "defaultValue": "",
+      "metadata": {
+        "description": "VM admin password. Required when authType is 'password'. Must meet Azure complexity requirements (12+ chars, upper+lower+number+special)."
+      }
+    },
+    "sshPublicKey": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "SSH public key string. Required when authType is 'sshPublicKey'."
+      }
+    },
+    "vmSize": {
+      "type": "string",
+      "defaultValue": "Standard_D2s_v3",
+      "metadata": {
+        "description": "VM size."
+      }
+    },
+    "osImage": {
+      "type": "string",
+      "defaultValue": "Ubuntu2404",
+      "allowedValues": [
+        "Ubuntu2404",
+        "Ubuntu2204",
+        "Ubuntu2004",
+        "Ubuntu1804",
+        "RHEL9",
+        "RHEL8",
+        "RHEL7",
+        "SLES15",
+        "AlmaLinux9",
+        "AlmaLinux8",
+        "OracleLinux9",
+        "OracleLinux8",
+        "AzureLinux3",
+        "AzureLinux2"
+      ],
+      "metadata": {
+        "description": "Linux distribution and version. The mount script auto-detects the OS and uses the correct package manager for AZNFS installation."
+      }
+    },
+    "provisionedStorageGiB": {
+      "type": "int",
+      "defaultValue": 1024,
+      "minValue": 100,
+      "maxValue": 102400,
+      "metadata": {
+        "description": "File share provisioned storage in GiB (100 - 102400)."
+      }
+    },
+    "provisionedIOPerSec": {
+      "type": "int",
+      "defaultValue": 0,
+      "minValue": 0,
+      "metadata": {
+        "description": "File share provisioned IOPS. Set to 0 to use the service default."
+      }
+    },
+    "provisionedThroughputMiBPerSec": {
+      "type": "int",
+      "defaultValue": 0,
+      "minValue": 0,
+      "metadata": {
+        "description": "File share provisioned throughput in MiB/s. Set to 0 to use the service default."
+      }
+    },
+    "networkAccessMode": {
+      "type": "string",
+      "defaultValue": "ServiceEndpoint",
+      "allowedValues": [
+        "ServiceEndpoint",
+        "PrivateEndpoint"
+      ],
+      "metadata": {
+        "description": "Network connectivity mode. 'ServiceEndpoint' uses VNet service endpoints. 'PrivateEndpoint' creates a private endpoint with Private DNS Zone."
+      }
+    },
+    "enableEncryptionInTransit": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Mount NFS share with TLS encryption via aznfs. If true and aznfs installation fails, the deployment will fail. If false, mounts with plain NFS."
+      }
+    },
+    "mountPath": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Custom mount path on the VM (e.g., '/mnt/myshare'). Leave empty to auto-generate as '/mnt/<shareMountName>'."
+      }
+    },
+    "_artifactsLocation": {
+      "type": "string",
+      "defaultValue": "[deployment().properties.templateLink.uri]",
+      "metadata": {
+        "description": "Base URL where the ARM template and mount script are hosted. Auto-resolved when deploying via --template-uri. Must be provided when deploying via --template-file (e.g., a blob storage URL)."
+      }
+    },
+    "_artifactsLocationSasToken": {
+      "type": "secureString",
+      "defaultValue": "",
+      "metadata": {
+        "description": "SAS token for accessing artifacts in private storage. Leave empty for public GitHub repos."
+      }
+    }
+  },
+  "variables": {
+    "vnetName": "[concat(parameters('resourcePrefix'), '-vnet')]",
+    "defaultSubnetName": "default",
+    "peSubnetName": "pe-subnet",
+    "vnetId": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+    "defaultSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('defaultSubnetName'))]",
+    "peSubnetId": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('peSubnetName'))]",
+    "publicIpName": "[concat(parameters('resourcePrefix'), '-vm-ip')]",
+    "nsgName": "[concat(parameters('resourcePrefix'), '-vm-nsg')]",
+    "nicName": "[concat(parameters('resourcePrefix'), '-vm-nic')]",
+    "vmName": "[concat(parameters('resourcePrefix'), '-vm')]",
+    "fileShareName": "[concat(parameters('resourcePrefix'), '-fs')]",
+    "peName": "[concat(parameters('resourcePrefix'), '-fs-pe')]",
+    "privateDnsZoneName": "privatelink.file.core.windows.net",
+    "usePrivateEndpoint": "[equals(parameters('networkAccessMode'), 'PrivateEndpoint')]",
+    "useServiceEndpoint": "[equals(parameters('networkAccessMode'), 'ServiceEndpoint')]",
+
+    "linuxConfigSSH": {
+      "disablePasswordAuthentication": true,
+      "ssh": {
+        "publicKeys": [
+          {
+            "path": "/home/AzureUser/.ssh/authorized_keys",
+            "keyData": "[parameters('sshPublicKey')]"
+          }
+        ]
+      },
+      "patchSettings": {
+        "assessmentMode": "ImageDefault",
+        "patchMode": "ImageDefault"
+      }
+    },
+    "linuxConfigPassword": {
+      "disablePasswordAuthentication": false,
+      "patchSettings": {
+        "assessmentMode": "ImageDefault",
+        "patchMode": "ImageDefault"
+      }
+    },
+
+    "subnetsServiceEndpoint": [
+      {
+        "name": "[variables('defaultSubnetName')]",
+        "properties": {
+          "addressPrefix": "10.0.0.0/24",
+          "serviceEndpoints": [
+            {
+              "service": "Microsoft.Storage"
+            }
+          ]
+        }
+      }
+    ],
+    "subnetsPrivateEndpoint": [
+      {
+        "name": "[variables('defaultSubnetName')]",
+        "properties": {
+          "addressPrefix": "10.0.0.0/24"
+        }
+      },
+      {
+        "name": "[variables('peSubnetName')]",
+        "properties": {
+          "addressPrefix": "10.0.1.0/24",
+          "privateEndpointNetworkPolicies": "Disabled"
+        }
+      }
+    ],
+
+    "imageMap": {
+      "Ubuntu2404": {
+        "publisher": "canonical",
+        "offer": "ubuntu-24_04-lts",
+        "sku": "server",
+        "version": "latest"
+      },
+      "Ubuntu2204": {
+        "publisher": "canonical",
+        "offer": "0001-com-ubuntu-server-jammy",
+        "sku": "22_04-lts-gen2",
+        "version": "latest"
+      },
+      "Ubuntu2004": {
+        "publisher": "canonical",
+        "offer": "0001-com-ubuntu-server-focal",
+        "sku": "20_04-lts-gen2",
+        "version": "latest"
+      },
+      "Ubuntu1804": {
+        "publisher": "canonical",
+        "offer": "UbuntuServer",
+        "sku": "18_04-lts-gen2",
+        "version": "latest"
+      },
+      "RHEL9": {
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "9-lvm-gen2",
+        "version": "latest"
+      },
+      "RHEL8": {
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "8-lvm-gen2",
+        "version": "latest"
+      },
+      "RHEL7": {
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "79-gen2",
+        "version": "latest"
+      },
+      "SLES15": {
+        "publisher": "SUSE",
+        "offer": "sles-15-sp5-basic",
+        "sku": "gen2",
+        "version": "latest"
+      },
+      "AlmaLinux9": {
+        "publisher": "almalinux",
+        "offer": "almalinux",
+        "sku": "9-gen2",
+        "version": "latest"
+      },
+      "AlmaLinux8": {
+        "publisher": "almalinux",
+        "offer": "almalinux",
+        "sku": "8-gen2",
+        "version": "latest"
+      },
+      "OracleLinux9": {
+        "publisher": "Oracle",
+        "offer": "Oracle-Linux",
+        "sku": "ol9-lvm-gen2",
+        "version": "latest"
+      },
+      "OracleLinux8": {
+        "publisher": "Oracle",
+        "offer": "Oracle-Linux",
+        "sku": "ol8-lvm-gen2",
+        "version": "latest"
+      },
+      "AzureLinux3": {
+        "publisher": "microsoftcbl-mariner",
+        "offer": "azure-linux-3",
+        "sku": "azure-linux-3-gen2",
+        "version": "latest"
+      },
+      "AzureLinux2": {
+        "publisher": "microsoftcbl-mariner",
+        "offer": "cbl-mariner",
+        "sku": "cbl-mariner-2-gen2",
+        "version": "latest"
+      }
+    },
+    "selectedImage": "[variables('imageMap')[parameters('osImage')]]",
+
+    "scriptUrl": "[uri(parameters('_artifactsLocation'), concat('mount-nfs-share.sh', parameters('_artifactsLocationSasToken')))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2025-05-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "10.0.0.0/16"
+          ]
+        },
+        "subnets": "[if(variables('usePrivateEndpoint'), variables('subnetsPrivateEndpoint'), variables('subnetsServiceEndpoint'))]"
+      }
+    },
+
+    {
+      "type": "Microsoft.Network/publicIpAddresses",
+      "apiVersion": "2025-05-01",
+      "name": "[variables('publicIpName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard"
+      },
+      "zones": [
+        "1",
+        "2",
+        "3"
+      ],
+      "properties": {
+        "publicIpAllocationMethod": "Static"
+      }
+    },
+
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2025-05-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "securityRules": [
+          {
+            "name": "AllowSSH",
+            "properties": {
+              "priority": 300,
+              "protocol": "TCP",
+              "access": "Allow",
+              "direction": "Inbound",
+              "sourceAddressPrefix": "*",
+              "sourcePortRange": "*",
+              "destinationAddressPrefix": "*",
+              "destinationPortRange": "22"
+            }
+          }
+        ]
+      }
+    },
+
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2025-05-01",
+      "name": "[variables('nicName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]",
+        "[resourceId('Microsoft.Network/publicIpAddresses', variables('publicIpName'))]"
+      ],
+      "properties": {
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+        },
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "subnet": {
+                "id": "[variables('defaultSubnetId')]"
+              },
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIpAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIpAddresses', variables('publicIpName'))]",
+                "properties": {
+                  "deleteOption": "Detach"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2024-07-01",
+      "name": "[variables('vmName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"
+      ],
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "[parameters('vmSize')]"
+        },
+        "storageProfile": {
+          "osDisk": {
+            "createOption": "fromImage",
+            "managedDisk": {
+              "storageAccountType": "Premium_LRS"
+            },
+            "deleteOption": "Delete"
+          },
+          "imageReference": "[variables('selectedImage')]"
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]",
+              "properties": {
+                "deleteOption": "Detach"
+              }
+            }
+          ]
+        },
+        "securityProfile": {
+          "securityType": "TrustedLaunch",
+          "uefiSettings": {
+            "secureBootEnabled": true,
+            "vTpmEnabled": true
+          }
+        },
+        "additionalCapabilities": {
+          "hibernationEnabled": false
+        },
+        "osProfile": {
+          "computerName": "[variables('vmName')]",
+          "adminUsername": "AzureUser",
+          "adminPassword": "[if(equals(parameters('authType'), 'password'), parameters('adminPassword'), json('null'))]",
+          "linuxConfiguration": "[if(equals(parameters('authType'), 'sshPublicKey'), variables('linuxConfigSSH'), variables('linuxConfigPassword'))]"
+        }
+      }
+    },
+
+    {
+      "type": "Microsoft.FileShares/fileShares",
+      "apiVersion": "2025-09-01-preview",
+      "name": "[variables('fileShareName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "protocol": "NFS",
+        "mediaTier": "SSD",
+        "provisionedStorageGiB": "[parameters('provisionedStorageGiB')]",
+        "provisionedIOPerSec": "[if(greater(parameters('provisionedIOPerSec'), 0), parameters('provisionedIOPerSec'), json('null'))]",
+        "provisionedThroughputMiBPerSec": "[if(greater(parameters('provisionedThroughputMiBPerSec'), 0), parameters('provisionedThroughputMiBPerSec'), json('null'))]",
+        "publicNetworkAccess": "[if(variables('usePrivateEndpoint'), 'Disabled', 'Enabled')]",
+        "publicAccessProperties": "[if(variables('useServiceEndpoint'), createObject('allowedSubnets', createArray(variables('defaultSubnetId'))), json('null'))]",
+        "redundancy": "Local",
+        "nfsProtocolProperties": {
+          "rootSquash": "NoRootSquash"
+        }
+      }
+    },
+
+    {
+      "condition": "[variables('usePrivateEndpoint')]",
+      "type": "Microsoft.Network/privateDnsZones",
+      "apiVersion": "2020-06-01",
+      "name": "[variables('privateDnsZoneName')]",
+      "location": "global"
+    },
+
+    {
+      "condition": "[variables('usePrivateEndpoint')]",
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2020-06-01",
+      "name": "[concat(variables('privateDnsZoneName'), '/', variables('vnetName'), '-link')]",
+      "location": "global",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "registrationEnabled": false,
+        "virtualNetwork": {
+          "id": "[variables('vnetId')]"
+        }
+      }
+    },
+
+    {
+      "condition": "[variables('usePrivateEndpoint')]",
+      "type": "Microsoft.Network/privateEndpoints",
+      "apiVersion": "2025-05-01",
+      "name": "[variables('peName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.FileShares/fileShares', variables('fileShareName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+      ],
+      "properties": {
+        "subnet": {
+          "id": "[variables('peSubnetId')]"
+        },
+        "privateLinkServiceConnections": [
+          {
+            "name": "[concat(variables('peName'), '-connection')]",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.FileShares/fileShares', variables('fileShareName'))]",
+              "groupIds": [
+                "FileShare"
+              ]
+            }
+          }
+        ]
+      }
+    },
+
+    {
+      "condition": "[variables('usePrivateEndpoint')]",
+      "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
+      "apiVersion": "2025-05-01",
+      "name": "[concat(variables('peName'), '/default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/privateEndpoints', variables('peName'))]",
+        "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]"
+      ],
+      "properties": {
+        "privateDnsZoneConfigs": [
+          {
+            "name": "fileShareDnsConfig",
+            "properties": {
+              "privateDnsZoneId": "[resourceId('Microsoft.Network/privateDnsZones', variables('privateDnsZoneName'))]"
+            }
+          }
+        ]
+      }
+    },
+
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "apiVersion": "2024-07-01",
+      "name": "[concat(variables('vmName'), '/mount-fileshare')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Compute/virtualMachines', variables('vmName'))]",
+        "[resourceId('Microsoft.FileShares/fileShares', variables('fileShareName'))]",
+        "[resourceId('Microsoft.Network/privateEndpoints/privateDnsZoneGroups', variables('peName'), 'default')]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.Azure.Extensions",
+        "type": "CustomScript",
+        "typeHandlerVersion": "2.1",
+        "autoUpgradeMinorVersion": true,
+        "settings": {
+          "fileUris": [
+            "[variables('scriptUrl')]"
+          ]
+        },
+        "protectedSettings": {
+          "commandToExecute": "[concat('bash mount-nfs-share.sh \"', if(parameters('enableEncryptionInTransit'), 'true', 'false'), '\" \"', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').hostName, '\" \"', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').mountName, '\" \"', if(empty(parameters('mountPath')), concat('/mnt/', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').mountName), parameters('mountPath')), '\"')]"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "vmPublicIpAddress": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Network/publicIpAddresses', variables('publicIpName'))).ipAddress]"
+    },
+    "sshCommand": {
+      "type": "string",
+      "value": "[concat('ssh AzureUser@', reference(resourceId('Microsoft.Network/publicIpAddresses', variables('publicIpName'))).ipAddress)]"
+    },
+    "fileShareName": {
+      "type": "string",
+      "value": "[variables('fileShareName')]"
+    },
+    "fileShareHostName": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').hostName]"
+    },
+    "mountPath": {
+      "type": "string",
+      "value": "[if(empty(parameters('mountPath')), concat('/mnt/', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').mountName), parameters('mountPath'))]"
+    },
+    "networkAccessMode": {
+      "type": "string",
+      "value": "[parameters('networkAccessMode')]"
+    },
+    "encryptionInTransit": {
+      "type": "bool",
+      "value": "[parameters('enableEncryptionInTransit')]"
+    },
+    "osImage": {
+      "type": "string",
+      "value": "[parameters('osImage')]"
+    },
+    "provisionedStorageGiB": {
+      "type": "int",
+      "value": "[reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').provisionedStorageGiB]"
+    },
+    "provisionedIOPerSec": {
+      "type": "int",
+      "value": "[reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').provisionedIOPerSec]"
+    },
+    "provisionedThroughputMiBPerSec": {
+      "type": "int",
+      "value": "[reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').provisionedThroughputMiBPerSec]"
+    },
+    "deploymentCommand": {
+      "type": "string",
+      "value": "To deploy from GitHub, use: az deployment group create --resource-group <RG_NAME> --template-uri <RAW_GITHUB_URL_TO_THIS_TEMPLATE> --parameters resourcePrefix=<PREFIX>"
+    }
+  }
+}
