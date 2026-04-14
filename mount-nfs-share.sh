@@ -159,6 +159,9 @@ install_aznfs() {
     case "$PKG_MGR" in
         apt)
             export DEBIAN_FRONTEND=noninteractive
+            # Enable universe repo (required on minimal Ubuntu cloud images)
+            sudo apt-get install -y software-properties-common 2>/dev/null || true
+            sudo add-apt-repository universe -y 2>/dev/null || true
             install_microsoft_repo
             sudo apt-get update
             sudo apt-get install -y aznfs
@@ -188,6 +191,9 @@ install_nfs_client() {
     case "$PKG_MGR" in
         apt)
             export DEBIAN_FRONTEND=noninteractive
+            # Enable universe repo (required on minimal Ubuntu cloud images)
+            sudo apt-get install -y software-properties-common 2>/dev/null || true
+            sudo add-apt-repository universe -y 2>/dev/null || true
             sudo apt-get update
             sudo apt-get install -y "$NFS_CLIENT_PKG"
             ;;
