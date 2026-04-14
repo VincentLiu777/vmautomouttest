@@ -76,9 +76,9 @@
       "type": "int",
       "defaultValue": 1024,
       "minValue": 32,
-      "maxValue": 102400,
+      "maxValue": 262144,
       "metadata": {
-        "description": "File share provisioned storage in GiB (100 - 102400)."
+        "description": "File share provisioned storage in GiB (32 - 262144)."
       }
     },
     "provisionedIOPerSec": {
