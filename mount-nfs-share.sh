@@ -130,6 +130,22 @@ echo "[INFO] Repo URL        : $REPO_URL"
 # Helper functions
 # ---------------------------------------------------------------------------
 
+wait_for_apt_lock() {
+    local max_wait=120
+    local waited=0
+    while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
+          sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || \
+          sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
+        if [ $waited -ge $max_wait ]; then
+            echo "[WARNING] Timed out waiting for apt lock after ${max_wait}s. Proceeding anyway."
+            break
+        fi
+        echo "[INFO] Waiting for apt lock to be released... (${waited}s)"
+        sleep 5
+        waited=$((waited + 5))
+    done
+}
+
 install_microsoft_repo() {
     echo "[INFO] Downloading Microsoft repository configuration..."
     local filename
@@ -141,6 +157,7 @@ install_microsoft_repo() {
 
     case "$REPO_FORMAT" in
         deb)
+            wait_for_apt_lock
             sudo dpkg -i "$filename"
             rm -f "$filename"
             ;;
@@ -159,10 +176,12 @@ install_aznfs() {
     case "$PKG_MGR" in
         apt)
             export DEBIAN_FRONTEND=noninteractive
+            wait_for_apt_lock
             # Enable universe repo (required on minimal Ubuntu cloud images)
             sudo apt-get install -y software-properties-common 2>/dev/null || true
             sudo add-apt-repository universe -y 2>/dev/null || true
             install_microsoft_repo
+            wait_for_apt_lock
             sudo apt-get update
             sudo apt-get install -y aznfs
             ;;
@@ -191,9 +210,11 @@ install_nfs_client() {
     case "$PKG_MGR" in
         apt)
             export DEBIAN_FRONTEND=noninteractive
+            wait_for_apt_lock
             # Enable universe repo (required on minimal Ubuntu cloud images)
             sudo apt-get install -y software-properties-common 2>/dev/null || true
             sudo add-apt-repository universe -y 2>/dev/null || true
+            wait_for_apt_lock
             sudo apt-get update
             sudo apt-get install -y "$NFS_CLIENT_PKG"
             ;;
