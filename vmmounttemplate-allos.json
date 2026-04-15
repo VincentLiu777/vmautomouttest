@@ -246,7 +246,7 @@
       "RHEL7": {
         "publisher": "RedHat",
         "offer": "RHEL",
-        "sku": "7.9",
+        "sku": "7_9",
         "version": "latest"
       },
       "SLES15": {
