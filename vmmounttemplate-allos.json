@@ -59,7 +59,6 @@
         "Ubuntu1804",
         "RHEL9",
         "RHEL8",
-        "RHEL7",
         "SLES15",
         "AlmaLinux9",
         "AlmaLinux8",
@@ -243,12 +242,6 @@
         "sku": "8-lvm-gen2",
         "version": "latest"
       },
-      "RHEL7": {
-        "publisher": "RedHat",
-        "offer": "RHEL",
-        "sku": "7_9",
-        "version": "latest"
-      },
       "SLES15": {
         "publisher": "SUSE",
         "offer": "sles-15-sp5-basic",
@@ -294,7 +287,7 @@
     },
     "selectedImage": "[variables('imageMap')[parameters('osImage')]]",
 
-    "noTrustedLaunchImages": ["RHEL7", "Ubuntu1804"],
+    "noTrustedLaunchImages": ["Ubuntu1804"],
     "supportsTrustedLaunch": "[not(contains(variables('noTrustedLaunchImages'), parameters('osImage')))]",
 
     "scriptUrl": "[uri(parameters('_artifactsLocation'), concat('mount-nfs-share.sh', parameters('_artifactsLocationSasToken')))]"
