@@ -230,6 +230,14 @@ install_microsoft_repo() {
     echo "[INFO] Microsoft repository configured."
 }
 
+# Configure yum/dnf to skip repos that are unreachable (e.g., RHEL 7 EOL dotnet repo)
+fix_broken_repos() {
+    if [ "$PKG_MGR" = "yum" ] && command -v yum-config-manager &>/dev/null; then
+        echo "[INFO] Setting all yum repos to skip_if_unavailable..."
+        sudo yum-config-manager --save --setopt=\*.skip_if_unavailable=true >/dev/null 2>&1 || true
+    fi
+}
+
 install_aznfs() {
     echo "[INFO] Installing aznfs mount helper..."
     export AZNFS_NONINTERACTIVE_INSTALL=1
@@ -247,6 +255,7 @@ install_aznfs() {
             retry_install sudo apt-get install -y aznfs
             ;;
         yum)
+            fix_broken_repos
             install_microsoft_repo
             wait_for_rpm_lock
             retry_install sudo yum install -y aznfs
@@ -279,6 +288,7 @@ install_nfs_client() {
             retry_install sudo apt-get install -y "$NFS_CLIENT_PKG"
             ;;
         yum)
+            fix_broken_repos
             wait_for_rpm_lock
             retry_install sudo yum install -y "$NFS_CLIENT_PKG"
             ;;
