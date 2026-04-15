@@ -383,3 +383,17 @@ echo "[INFO]  Mount completed successfully"
 echo "[INFO] ==================================================================="
 echo "[INFO] Share mounted at: $MOUNT_PATH (type: $MOUNT_TYPE)"
 df -h "$MOUNT_PATH"
+
+# ---------------------------------------------------------------------------
+# Ensure SSH password authentication is enabled
+# Some marketplace images (RHEL, Oracle, Alma) disable password auth by default
+# in sshd_config, overriding the Azure disablePasswordAuthentication setting.
+# ---------------------------------------------------------------------------
+if grep -qE '^\s*PasswordAuthentication\s+no' /etc/ssh/sshd_config 2>/dev/null; then
+    echo "[INFO] Enabling SSH password authentication..."
+    sudo sed -i 's/^\s*PasswordAuthentication\s\+no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+    # Also check sshd_config.d drop-in files
+    sudo sed -i 's/^\s*PasswordAuthentication\s\+no/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf 2>/dev/null || true
+    sudo systemctl restart sshd
+    echo "[INFO] SSH password authentication enabled."
+fi
