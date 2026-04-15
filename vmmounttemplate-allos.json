@@ -246,7 +246,7 @@
       "RHEL7": {
         "publisher": "RedHat",
         "offer": "RHEL",
-        "sku": "79-gen2",
+        "sku": "7.9",
         "version": "latest"
       },
       "SLES15": {
@@ -293,6 +293,9 @@
       }
     },
     "selectedImage": "[variables('imageMap')[parameters('osImage')]]",
+
+    "noTrustedLaunchImages": ["RHEL7", "Ubuntu1804"],
+    "supportsTrustedLaunch": "[not(contains(variables('noTrustedLaunchImages'), parameters('osImage')))]",
 
     "scriptUrl": "[uri(parameters('_artifactsLocation'), concat('mount-nfs-share.sh', parameters('_artifactsLocationSasToken')))]"
   },
@@ -420,13 +423,7 @@
             }
           ]
         },
-        "securityProfile": {
-          "securityType": "TrustedLaunch",
-          "uefiSettings": {
-            "secureBootEnabled": true,
-            "vTpmEnabled": true
-          }
-        },
+        "securityProfile": "[if(variables('supportsTrustedLaunch'), createObject('securityType', 'TrustedLaunch', 'uefiSettings', createObject('secureBootEnabled', true(), 'vTpmEnabled', true())), json('null'))]",
         "additionalCapabilities": {
           "hibernationEnabled": false
         },
