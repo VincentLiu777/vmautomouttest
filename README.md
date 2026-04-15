@@ -19,7 +19,7 @@ Deploy a Linux VM with an NFS Azure file share automatically mounted, with optio
 | OS Family | Versions | AZNFS EiT Support |
 |---|---|---|
 | Ubuntu | 24.04, 22.04, 20.04, 18.04 | ✅ |
-| RHEL | 9, 8, 7 | ✅ |
+| RHEL | 9, 8 | ✅ |
 | SUSE SLES | 15 | ✅ |
 | Alma Linux | 9, 8 | ✅ |
 | Oracle Linux | 9, 8 | ✅ |
@@ -87,7 +87,7 @@ az deployment group create \
 
 ```
 Ubuntu2404  Ubuntu2204  Ubuntu2004  Ubuntu1804
-RHEL9       RHEL8       RHEL7
+RHEL9       RHEL8
 SLES15
 AlmaLinux9  AlmaLinux8
 OracleLinux9  OracleLinux8

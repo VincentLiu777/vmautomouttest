@@ -8,7 +8,7 @@
 #
 # Supported OS families (per AZNFS documentation):
 #   - Ubuntu (18.04, 20.04, 22.04, 24.04)
-#   - RHEL (7, 8, 9)
+#   - RHEL (8, 9)
 #   - SUSE SLES (15)
 #   - Alma Linux (8, 9)
 #   - Oracle Linux (8, 9)
@@ -230,7 +230,7 @@ install_microsoft_repo() {
     echo "[INFO] Microsoft repository configured."
 }
 
-# Configure yum/dnf to skip repos that are unreachable (e.g., RHEL 7 EOL dotnet repo)
+# Configure yum/dnf to skip repos that are unreachable (e.g., EOL distro repos)
 fix_broken_repos() {
     if [ "$PKG_MGR" = "yum" ] && command -v yum-config-manager &>/dev/null; then
         echo "[INFO] Setting all yum repos to skip_if_unavailable..."
