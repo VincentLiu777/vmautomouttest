@@ -131,14 +131,19 @@ echo "[INFO] Repo URL        : $REPO_URL"
 # ---------------------------------------------------------------------------
 
 wait_for_apt_lock() {
-    local max_wait=120
+    # Stop background package manager services that hold the lock on first boot
+    sudo systemctl stop unattended-upgrades.service 2>/dev/null || true
+    sudo systemctl stop apt-daily.service 2>/dev/null || true
+    sudo systemctl stop apt-daily-upgrade.service 2>/dev/null || true
+
+    local max_wait=300
     local waited=0
     while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || \
           sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1 || \
           sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
         if [ $waited -ge $max_wait ]; then
-            echo "[WARNING] Timed out waiting for apt lock after ${max_wait}s. Proceeding anyway."
-            break
+            echo "[ERROR] Timed out waiting for apt lock after ${max_wait}s."
+            return 1
         fi
         echo "[INFO] Waiting for apt lock to be released... (${waited}s)"
         sleep 5
@@ -147,14 +152,20 @@ wait_for_apt_lock() {
 }
 
 wait_for_rpm_lock() {
-    local max_wait=120
+    # Stop background package manager services that hold the lock on first boot
+    sudo systemctl stop dnf-makecache.service 2>/dev/null || true
+    sudo systemctl stop dnf-makecache.timer 2>/dev/null || true
+    sudo systemctl stop packagekit.service 2>/dev/null || true
+    sudo systemctl stop yum-cron.service 2>/dev/null || true
+
+    local max_wait=300
     local waited=0
     while sudo fuser /var/lib/rpm/.rpm.lock >/dev/null 2>&1 || \
           sudo fuser /var/lib/dnf/lock >/dev/null 2>&1 || \
           sudo fuser /var/run/yum.pid >/dev/null 2>&1; do
         if [ $waited -ge $max_wait ]; then
-            echo "[WARNING] Timed out waiting for rpm lock after ${max_wait}s. Proceeding anyway."
-            break
+            echo "[ERROR] Timed out waiting for rpm lock after ${max_wait}s."
+            return 1
         fi
         echo "[INFO] Waiting for rpm/yum/dnf lock to be released... (${waited}s)"
         sleep 5
