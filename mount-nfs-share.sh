@@ -213,7 +213,6 @@ install_aznfs() {
         yum)
             install_microsoft_repo
             wait_for_rpm_lock
-            sudo yum update -y
             sudo yum install -y aznfs
             ;;
         zypper)
