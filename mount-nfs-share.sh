@@ -389,11 +389,28 @@ df -h "$MOUNT_PATH"
 # Some marketplace images (RHEL, Oracle, Alma) disable password auth by default
 # in sshd_config, overriding the Azure disablePasswordAuthentication setting.
 # ---------------------------------------------------------------------------
+SSHD_RESTART_NEEDED=false
+
+# Fix main sshd_config
 if grep -qE '^\s*PasswordAuthentication\s+no' /etc/ssh/sshd_config 2>/dev/null; then
-    echo "[INFO] Enabling SSH password authentication..."
+    echo "[INFO] Enabling SSH password authentication in sshd_config..."
     sudo sed -i 's/^\s*PasswordAuthentication\s\+no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-    # Also check sshd_config.d drop-in files
-    sudo sed -i 's/^\s*PasswordAuthentication\s\+no/PasswordAuthentication yes/' /etc/ssh/sshd_config.d/*.conf 2>/dev/null || true
+    SSHD_RESTART_NEEDED=true
+fi
+
+# Fix drop-in files if the directory exists
+if [ -d /etc/ssh/sshd_config.d ]; then
+    for f in /etc/ssh/sshd_config.d/*.conf; do
+        [ -f "$f" ] || continue
+        if grep -qE '^\s*PasswordAuthentication\s+no' "$f" 2>/dev/null; then
+            echo "[INFO] Enabling SSH password authentication in $f..."
+            sudo sed -i 's/^\s*PasswordAuthentication\s\+no/PasswordAuthentication yes/' "$f"
+            SSHD_RESTART_NEEDED=true
+        fi
+    done
+fi
+
+if [ "$SSHD_RESTART_NEEDED" = "true" ]; then
     sudo systemctl restart sshd
     echo "[INFO] SSH password authentication enabled."
 fi
