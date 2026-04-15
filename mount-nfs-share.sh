@@ -173,6 +173,31 @@ wait_for_rpm_lock() {
     done
 }
 
+# Retry a package install command up to 5 times with lock waits between retries.
+# This handles the race condition where the lock is released between our check
+# and the actual install, or where GPG key import fails due to lock contention.
+retry_install() {
+    local max_attempts=5
+    local attempt=1
+    while [ $attempt -le $max_attempts ]; do
+        echo "[INFO] Install attempt $attempt/$max_attempts: $*"
+        if "$@"; then
+            return 0
+        fi
+        echo "[WARNING] Install failed (attempt $attempt/$max_attempts)."
+        if [ $attempt -lt $max_attempts ]; then
+            echo "[INFO] Waiting 30s before retry..."
+            sleep 30
+            # Re-check lock before retrying
+            wait_for_rpm_lock 2>/dev/null || true
+            wait_for_apt_lock 2>/dev/null || true
+        fi
+        attempt=$((attempt + 1))
+    done
+    echo "[ERROR] Install failed after $max_attempts attempts."
+    return 1
+}
+
 wait_for_pkg_lock() {
     case "$PKG_MGR" in
         apt) wait_for_apt_lock ;;
@@ -198,7 +223,7 @@ install_microsoft_repo() {
             ;;
         rpm)
             wait_for_rpm_lock
-            sudo rpm -i "$filename"
+            sudo rpm -i "$filename" 2>/dev/null || true
             rm -f "$filename"
             ;;
     esac
@@ -219,22 +244,22 @@ install_aznfs() {
             install_microsoft_repo
             wait_for_apt_lock
             sudo apt-get update
-            sudo apt-get install -y aznfs
+            retry_install sudo apt-get install -y aznfs
             ;;
         yum)
             install_microsoft_repo
             wait_for_rpm_lock
-            sudo yum install -y aznfs
+            retry_install sudo yum install -y aznfs
             ;;
         zypper)
             install_microsoft_repo
             sudo zypper refresh
-            sudo zypper --non-interactive install aznfs
+            retry_install sudo zypper --non-interactive install aznfs
             ;;
         dnf)
             install_microsoft_repo
             wait_for_rpm_lock
-            sudo dnf install -y aznfs
+            retry_install sudo dnf install -y aznfs
             ;;
     esac
 }
@@ -251,18 +276,18 @@ install_nfs_client() {
             sudo add-apt-repository universe -y 2>/dev/null || true
             wait_for_apt_lock
             sudo apt-get update
-            sudo apt-get install -y "$NFS_CLIENT_PKG"
+            retry_install sudo apt-get install -y "$NFS_CLIENT_PKG"
             ;;
         yum)
             wait_for_rpm_lock
-            sudo yum install -y "$NFS_CLIENT_PKG"
+            retry_install sudo yum install -y "$NFS_CLIENT_PKG"
             ;;
         zypper)
-            sudo zypper --non-interactive install "$NFS_CLIENT_PKG"
+            retry_install sudo zypper --non-interactive install "$NFS_CLIENT_PKG"
             ;;
         dnf)
             wait_for_rpm_lock
-            sudo dnf install -y "$NFS_CLIENT_PKG"
+            retry_install sudo dnf install -y "$NFS_CLIENT_PKG"
             ;;
     esac
 }
