@@ -223,8 +223,6 @@ install_aznfs() {
         dnf)
             install_microsoft_repo
             wait_for_rpm_lock
-            # dnf check-update returns exit code 100 when updates are available
-            sudo dnf -y check-update --refresh || true
             sudo dnf install -y aznfs
             ;;
     esac
