@@ -264,28 +264,15 @@ install_aznfs() {
             install_microsoft_repo
             # Import Microsoft GPG key so zypper doesn't prompt
             sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null || true
-            # Try to enable PackageHub for conntrack-tools (may fail without registration)
-            sudo SUSEConnect -p PackageHub/15.5/x86_64 2>/dev/null || true
+            # Add openSUSE OSS repo for stunnel and conntrack-tools
+            # SLES Marketplace images often lack registration, so we use the public openSUSE repo
+            sudo zypper --gpg-auto-import-keys addrepo -cfG \
+                https://download.opensuse.org/distribution/leap/15.5/repo/oss/ opensuse-oss 2>/dev/null || true
             sudo zypper --gpg-auto-import-keys refresh
-            # Install aznfs runtime dependencies available in base repos
-            sudo zypper --gpg-auto-import-keys --non-interactive install stunnel nfs-client 2>/dev/null || true
-            # Install conntrack-tools if available (PackageHub)
-            sudo zypper --gpg-auto-import-keys --non-interactive install conntrack-tools 2>/dev/null || true
-            # Try normal install first; if deps fail, download RPM and force-install
-            if ! sudo zypper --gpg-auto-import-keys --non-interactive install aznfs 2>/dev/null; then
-                echo "[INFO] Normal zypper install failed (missing deps). Downloading and force-installing aznfs RPM..."
-                local aznfs_rpm
-                aznfs_rpm=$(sudo zypper --gpg-auto-import-keys --non-interactive download aznfs 2>/dev/null | grep -oP '/var/cache/zypp/packages/\S+\.rpm' | head -1)
-                if [ -z "$aznfs_rpm" ]; then
-                    aznfs_rpm=$(find /var/cache/zypp/packages -name "aznfs-*.rpm" 2>/dev/null | head -1)
-                fi
-                if [ -n "$aznfs_rpm" ]; then
-                    sudo rpm -i --nodeps "$aznfs_rpm"
-                else
-                    echo "[ERROR] Could not find aznfs RPM to install."
-                    return 1
-                fi
-            fi
+            # Install aznfs dependencies: stunnel, conntrack-tools, nfs-client
+            sudo zypper --gpg-auto-import-keys --non-interactive install stunnel conntrack-tools 2>/dev/null || true
+            # Install aznfs
+            retry_install sudo zypper --gpg-auto-import-keys --non-interactive install aznfs
             ;;
         dnf)
             install_microsoft_repo
