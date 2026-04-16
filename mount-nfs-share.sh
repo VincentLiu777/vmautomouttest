@@ -267,7 +267,9 @@ install_aznfs() {
             # Try to enable PackageHub for conntrack-tools (may fail without registration)
             sudo SUSEConnect -p PackageHub/15.5/x86_64 2>/dev/null || true
             sudo zypper --gpg-auto-import-keys refresh
-            # Install conntrack-tools if available
+            # Install aznfs runtime dependencies available in base repos
+            sudo zypper --gpg-auto-import-keys --non-interactive install stunnel nfs-client 2>/dev/null || true
+            # Install conntrack-tools if available (PackageHub)
             sudo zypper --gpg-auto-import-keys --non-interactive install conntrack-tools 2>/dev/null || true
             # Try normal install first; if deps fail, download RPM and force-install
             if ! sudo zypper --gpg-auto-import-keys --non-interactive install aznfs 2>/dev/null; then
@@ -275,7 +277,6 @@ install_aznfs() {
                 local aznfs_rpm
                 aznfs_rpm=$(sudo zypper --gpg-auto-import-keys --non-interactive download aznfs 2>/dev/null | grep -oP '/var/cache/zypp/packages/\S+\.rpm' | head -1)
                 if [ -z "$aznfs_rpm" ]; then
-                    # Fallback: find the cached RPM
                     aznfs_rpm=$(find /var/cache/zypp/packages -name "aznfs-*.rpm" 2>/dev/null | head -1)
                 fi
                 if [ -n "$aznfs_rpm" ]; then
