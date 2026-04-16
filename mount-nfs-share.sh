@@ -269,8 +269,22 @@ install_aznfs() {
             sudo zypper --gpg-auto-import-keys refresh
             # Install conntrack-tools if available
             sudo zypper --gpg-auto-import-keys --non-interactive install conntrack-tools 2>/dev/null || true
-            # Install aznfs; use --force-resolution if conntrack-tools unavailable
-            retry_install sudo zypper --gpg-auto-import-keys --non-interactive --force-resolution install aznfs
+            # Try normal install first; if deps fail, download RPM and force-install
+            if ! sudo zypper --gpg-auto-import-keys --non-interactive install aznfs 2>/dev/null; then
+                echo "[INFO] Normal zypper install failed (missing deps). Downloading and force-installing aznfs RPM..."
+                local aznfs_rpm
+                aznfs_rpm=$(sudo zypper --gpg-auto-import-keys --non-interactive download aznfs 2>/dev/null | grep -oP '/var/cache/zypp/packages/\S+\.rpm' | head -1)
+                if [ -z "$aznfs_rpm" ]; then
+                    # Fallback: find the cached RPM
+                    aznfs_rpm=$(find /var/cache/zypp/packages -name "aznfs-*.rpm" 2>/dev/null | head -1)
+                fi
+                if [ -n "$aznfs_rpm" ]; then
+                    sudo rpm -i --nodeps "$aznfs_rpm"
+                else
+                    echo "[ERROR] Could not find aznfs RPM to install."
+                    return 1
+                fi
+            fi
             ;;
         dnf)
             install_microsoft_repo
