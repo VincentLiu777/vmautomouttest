@@ -244,7 +244,7 @@
       },
       "SLES15": {
         "publisher": "SUSE",
-        "offer": "sles-15-sp5-basic",
+        "offer": "sles-15-sp5",
         "sku": "gen2",
         "version": "latest"
       },
