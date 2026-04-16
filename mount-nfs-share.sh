@@ -262,8 +262,10 @@ install_aznfs() {
             ;;
         zypper)
             install_microsoft_repo
-            sudo zypper refresh
-            retry_install sudo zypper --non-interactive install aznfs
+            # Import Microsoft GPG key so zypper doesn't prompt
+            sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null || true
+            sudo zypper --gpg-auto-import-keys refresh
+            retry_install sudo zypper --gpg-auto-import-keys --non-interactive install aznfs
             ;;
         dnf)
             install_microsoft_repo
@@ -293,7 +295,7 @@ install_nfs_client() {
             retry_install sudo yum install -y "$NFS_CLIENT_PKG"
             ;;
         zypper)
-            retry_install sudo zypper --non-interactive install "$NFS_CLIENT_PKG"
+            retry_install sudo zypper --gpg-auto-import-keys --non-interactive install "$NFS_CLIENT_PKG"
             ;;
         dnf)
             wait_for_rpm_lock
