@@ -264,7 +264,11 @@ install_aznfs() {
             install_microsoft_repo
             # Import Microsoft GPG key so zypper doesn't prompt
             sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null || true
+            # Enable PackageHub repo for conntrack-tools dependency
+            sudo SUSEConnect -p PackageHub/15.5/x86_64 2>/dev/null || true
             sudo zypper --gpg-auto-import-keys refresh
+            # Install conntrack-tools dependency first (not in SLES base repo)
+            sudo zypper --gpg-auto-import-keys --non-interactive install conntrack-tools 2>/dev/null || true
             retry_install sudo zypper --gpg-auto-import-keys --non-interactive install aznfs
             ;;
         dnf)
