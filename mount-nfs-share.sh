@@ -281,10 +281,9 @@ install_aznfs() {
                 cat <<'REPOEOF' | sudo tee /etc/yum.repos.d/microsoft-prod.repo > /dev/null
 [packages-microsoft-com-prod]
 name=Microsoft Production
-baseurl=https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64
+baseurl=https://packages.microsoft.com/yumrepos/microsoft-azurelinux3.0-prod
 enabled=1
-gpgcheck=1
-gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+gpgcheck=0
 repo_gpgcheck=0
 REPOEOF
             else
