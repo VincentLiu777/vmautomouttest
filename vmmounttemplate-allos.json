@@ -250,13 +250,13 @@
       },
       "AlmaLinux9": {
         "publisher": "almalinux",
-        "offer": "almalinux",
+        "offer": "almalinux-x86_64",
         "sku": "9-gen2",
         "version": "latest"
       },
       "AlmaLinux8": {
         "publisher": "almalinux",
-        "offer": "almalinux",
+        "offer": "almalinux-x86_64",
         "sku": "8-gen2",
         "version": "latest"
       },
