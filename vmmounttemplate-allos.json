@@ -62,7 +62,6 @@
         "SLES15",
         "AlmaLinux9",
         "AlmaLinux8",
-        "OracleLinux9",
         "OracleLinux8",
         "AzureLinux3",
         "AzureLinux2"
@@ -260,16 +259,10 @@
         "sku": "8-gen2",
         "version": "latest"
       },
-      "OracleLinux9": {
-        "publisher": "Oracle",
-        "offer": "Oracle-Linux",
-        "sku": "ol9-lvm-gen2",
-        "version": "latest"
-      },
       "OracleLinux8": {
         "publisher": "Oracle",
         "offer": "Oracle-Linux",
-        "sku": "ol8-lvm-gen2",
+        "sku": "ol810-lvm-gen2",
         "version": "latest"
       },
       "AzureLinux3": {
