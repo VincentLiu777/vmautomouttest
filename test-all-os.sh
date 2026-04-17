@@ -119,17 +119,7 @@ az deployment group create \
   --template-uri "https://raw.githubusercontent.com/VincentLiu777/vmautomouttest/main/vmmounttemplate-allos.json" \
   --parameters resourcePrefix=alma8pe location=eastasia osImage=AlmaLinux8 networkAccessMode=PrivateEndpoint adminPassword='Johnjack1213!'
 
-# --- Oracle Linux 9 - Service Endpoint ---
-az deployment group create \
-  --resource-group rongpuliumanagedfs \
-  --template-uri "https://raw.githubusercontent.com/VincentLiu777/vmautomouttest/main/vmmounttemplate-allos.json" \
-  --parameters resourcePrefix=oracl9se location=eastasia osImage=OracleLinux9 networkAccessMode=ServiceEndpoint adminPassword='Johnjack1213!'
-
-# --- Oracle Linux 9 - Private Endpoint ---
-az deployment group create \
-  --resource-group rongpuliumanagedfs \
-  --template-uri "https://raw.githubusercontent.com/VincentLiu777/vmautomouttest/main/vmmounttemplate-allos.json" \
-  --parameters resourcePrefix=oracl9pe location=eastasia osImage=OracleLinux9 networkAccessMode=PrivateEndpoint adminPassword='Johnjack1213!'
+# --- Oracle Linux 9 - REMOVED (unavailable in eastasia) ---
 
 # --- Oracle Linux 8 - Service Endpoint ---
 az deployment group create \
@@ -155,17 +145,7 @@ az deployment group create \
   --template-uri "https://raw.githubusercontent.com/VincentLiu777/vmautomouttest/main/vmmounttemplate-allos.json" \
   --parameters resourcePrefix=azl3pe location=eastasia osImage=AzureLinux3 networkAccessMode=PrivateEndpoint adminPassword='Johnjack1213!'
 
-# --- Azure Linux 2 - Service Endpoint ---
-az deployment group create \
-  --resource-group rongpuliumanagedfs \
-  --template-uri "https://raw.githubusercontent.com/VincentLiu777/vmautomouttest/main/vmmounttemplate-allos.json" \
-  --parameters resourcePrefix=azl2se location=eastasia osImage=AzureLinux2 networkAccessMode=ServiceEndpoint adminPassword='Johnjack1213!'
-
-# --- Azure Linux 2 - Private Endpoint ---
-az deployment group create \
-  --resource-group rongpuliumanagedfs \
-  --template-uri "https://raw.githubusercontent.com/VincentLiu777/vmautomouttest/main/vmmounttemplate-allos.json" \
-  --parameters resourcePrefix=azl2pe location=eastasia osImage=AzureLinux2 networkAccessMode=PrivateEndpoint adminPassword='Johnjack1213!'
+# --- Azure Linux 2 - REMOVED (unavailable) ---
 
 # =============================================================================
 # CLEANUP: Delete all test resources when done

@@ -63,8 +63,7 @@
         "AlmaLinux9",
         "AlmaLinux8",
         "OracleLinux8",
-        "AzureLinux3",
-        "AzureLinux2"
+        "AzureLinux3"
       ],
       "metadata": {
         "description": "Linux distribution and version. The mount script auto-detects the OS and uses the correct package manager for AZNFS installation."
@@ -266,21 +265,15 @@
         "version": "latest"
       },
       "AzureLinux3": {
-        "publisher": "microsoftcbl-mariner",
+        "publisher": "microsoftcblmariner",
         "offer": "azure-linux-3",
-        "sku": "azure-linux-3-gen2",
-        "version": "latest"
-      },
-      "AzureLinux2": {
-        "publisher": "microsoftcbl-mariner",
-        "offer": "cbl-mariner",
-        "sku": "cbl-mariner-2-gen2",
+        "sku": "azure-linux-3-acl",
         "version": "latest"
       }
     },
     "selectedImage": "[variables('imageMap')[parameters('osImage')]]",
 
-    "noTrustedLaunchImages": ["Ubuntu1804"],
+    "noTrustedLaunchImages": ["Ubuntu1804", "AzureLinux3"],
     "supportsTrustedLaunch": "[not(contains(variables('noTrustedLaunchImages'), parameters('osImage')))]",
 
     "scriptUrl": "[uri(parameters('_artifactsLocation'), concat('mount-nfs-share.sh', parameters('_artifactsLocationSasToken')))]"
