@@ -267,7 +267,7 @@
       "AzureLinux3": {
         "publisher": "microsoftcblmariner",
         "offer": "azure-linux-3",
-        "sku": "azure-linux-3-acl",
+        "sku": "azure-linux-3-gen2",
         "version": "latest"
       }
     },
