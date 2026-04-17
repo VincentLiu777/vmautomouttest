@@ -276,12 +276,13 @@ install_aznfs() {
             ;;
         dnf|tdnf)
             if [ "$PKG_MGR" = "tdnf" ]; then
-                # Azure Linux: create Microsoft repo manually (RPM repo config not compatible with tdnf)
+                # Azure Linux: create Microsoft repo manually
+                # tdnf's repo gpg check plugin is incompatible with the RHEL RPM config
                 sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null || true
                 cat <<'REPOEOF' | sudo tee /etc/yum.repos.d/microsoft-prod.repo > /dev/null
 [packages-microsoft-com-prod]
 name=Microsoft Production
-baseurl=https://packages.microsoft.com/yumrepos/microsoft-azurelinux3.0-prod
+baseurl=https://packages.microsoft.com/yumrepos/microsoft-rhel9.0-prod
 enabled=1
 gpgcheck=0
 repo_gpgcheck=0
