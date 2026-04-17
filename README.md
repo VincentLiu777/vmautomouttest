@@ -9,7 +9,7 @@ Deploy a Linux VM with an NFS Azure file share automatically mounted, with optio
 | Virtual Network | With service endpoint or private endpoint subnet |
 | Network Security Group | SSH (port 22) inbound rule |
 | Public IP + NIC | Static public IP attached to the VM |
-| Linux VM | Your chosen OS and SKU with Trusted Launch |
+| Linux VM | Your chosen OS and SKU (Trusted Launch where supported) |
 | NFS File Share | SSD-tier managed file share (`Microsoft.FileShares/fileShares`) |
 | Private Endpoint + DNS Zone | *(Only when `networkAccessMode=PrivateEndpoint`)* |
 | CustomScript Extension | Downloads and runs `mount-nfs-share.sh` to mount the share |
@@ -22,8 +22,8 @@ Deploy a Linux VM with an NFS Azure file share automatically mounted, with optio
 | RHEL | 9, 8 | ✅ |
 | SUSE SLES | 15 | ✅ |
 | Alma Linux | 9, 8 | ✅ |
-| Oracle Linux | 9, 8 | ✅ |
-| Azure Linux | 3, 2 | ✅ |
+| Oracle Linux | 8 | ✅ |
+| Azure Linux | 3 | ✅ |
 
 ## Quick Start
 
@@ -74,7 +74,7 @@ az deployment group create \
 | `sshPublicKey` | | SSH public key (required if authType=sshPublicKey) |
 | `vmSize` | `Standard_D2s_v3` | VM SKU |
 | `osImage` | `Ubuntu2404` | OS image (see [supported list](#supported-operating-systems)) |
-| `provisionedStorageGiB` | `1024` | File share size in GiB (100–102400) |
+| `provisionedStorageGiB` | `1024` | File share size in GiB (32–262144) |
 | `provisionedIOPerSec` | `0` | IOPS (0 = service default) |
 | `provisionedThroughputMiBPerSec` | `0` | Throughput in MiB/s (0 = service default) |
 | `networkAccessMode` | `ServiceEndpoint` | `ServiceEndpoint` or `PrivateEndpoint` |
@@ -90,8 +90,8 @@ Ubuntu2404  Ubuntu2204  Ubuntu2004  Ubuntu1804
 RHEL9       RHEL8
 SLES15
 AlmaLinux9  AlmaLinux8
-OracleLinux9  OracleLinux8
-AzureLinux3  AzureLinux2
+OracleLinux8
+AzureLinux3
 ```
 
 ## Examples
@@ -191,13 +191,19 @@ After deployment, the following values are returned:
 
 ## Verify the Mount
 
-SSH into the VM and check:
+SSH into the VM or use `az vm run-command` (no SSH needed):
 
 ```bash
-# Check mount
-df -Th /mnt/<shareMountName>
+# Option 1: Via az vm run-command (recommended — no JIT/SSH needed)
+az vm run-command invoke \
+  --resource-group <RG> \
+  --name <PREFIX>-vm \
+  --command-id RunShellScript \
+  --scripts "df -Th; echo ---; systemctl is-active aznfswatchdog; echo ---; grep -v '#' /etc/fstab"
 
-# If EiT is enabled, verify aznfs is active
+# Option 2: Via SSH (requires JIT access)
+ssh AzureUser@<VM_IP>
+df -Th /mnt/<shareMountName>
 systemctl is-active aznfswatchdog
 
 # Check fstab entry
@@ -219,7 +225,8 @@ cat /etc/fstab
 | File | Purpose |
 |---|---|
 | `vmmounttemplate-allos.json` | ARM template — multi-OS, external script |
-| `mount-nfs-share.sh` | Bash mount script — auto-detects OS |
+| `mount-nfs-share.sh` | Bash mount script — auto-detects OS, package manager, EiT |
+| `test-all-os.sh` | Test commands for all OS + network mode combinations |
 | `vmmounttemplate-ubuntu.json` | Legacy Ubuntu-only ARM template (inline script) |
 
 ## References
