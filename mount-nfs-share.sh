@@ -107,7 +107,7 @@ case "$OS_ID" in
         ;;
 
     mariner|azurelinux)
-        PKG_MGR="dnf"
+        PKG_MGR="tdnf"
         # Azure Linux uses rhel/9 repo per Microsoft docs
         REPO_URL="https://packages.microsoft.com/config/rhel/9/packages-microsoft-prod.rpm"
         REPO_FORMAT="rpm"
@@ -201,7 +201,7 @@ retry_install() {
 wait_for_pkg_lock() {
     case "$PKG_MGR" in
         apt) wait_for_apt_lock ;;
-        yum|dnf) wait_for_rpm_lock ;;
+        yum|dnf|tdnf) wait_for_rpm_lock ;;
         # zypper doesn't typically have boot-time lock contention
     esac
 }
@@ -274,10 +274,10 @@ install_aznfs() {
             # Install aznfs
             retry_install sudo zypper --gpg-auto-import-keys --non-interactive install aznfs
             ;;
-        dnf)
+        dnf|tdnf)
             install_microsoft_repo
             wait_for_rpm_lock
-            retry_install sudo dnf install -y aznfs
+            retry_install sudo $PKG_MGR install -y aznfs
             ;;
     esac
 }
@@ -304,9 +304,9 @@ install_nfs_client() {
         zypper)
             retry_install sudo zypper --gpg-auto-import-keys --non-interactive install "$NFS_CLIENT_PKG"
             ;;
-        dnf)
+        dnf|tdnf)
             wait_for_rpm_lock
-            retry_install sudo dnf install -y "$NFS_CLIENT_PKG"
+            retry_install sudo $PKG_MGR install -y "$NFS_CLIENT_PKG"
             ;;
     esac
 }
