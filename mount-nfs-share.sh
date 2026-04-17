@@ -275,12 +275,20 @@ install_aznfs() {
             retry_install sudo zypper --gpg-auto-import-keys --non-interactive install aznfs
             ;;
         dnf|tdnf)
-            install_microsoft_repo
-            # Import Microsoft GPG key (required for tdnf repo signature verification)
-            sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null || true
-            # Disable repo GPG signature check for Microsoft Production repo on Azure Linux
-            if [ -f /etc/yum.repos.d/packages-microsoft-com-prod.repo ]; then
-                sudo sed -i 's/^repo_gpgcheck=1/repo_gpgcheck=0/' /etc/yum.repos.d/packages-microsoft-com-prod.repo 2>/dev/null || true
+            if [ "$PKG_MGR" = "tdnf" ]; then
+                # Azure Linux: create Microsoft repo manually (RPM repo config not compatible with tdnf)
+                sudo rpm --import https://packages.microsoft.com/keys/microsoft.asc 2>/dev/null || true
+                cat <<'REPOEOF' | sudo tee /etc/yum.repos.d/microsoft-prod.repo > /dev/null
+[packages-microsoft-com-prod]
+name=Microsoft Production
+baseurl=https://packages.microsoft.com/azurelinux/3.0/prod/base/x86_64
+enabled=1
+gpgcheck=1
+gpgkey=https://packages.microsoft.com/keys/microsoft.asc
+repo_gpgcheck=0
+REPOEOF
+            else
+                install_microsoft_repo
             fi
             wait_for_rpm_lock
             retry_install sudo $PKG_MGR install -y aznfs
