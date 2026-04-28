@@ -444,6 +444,10 @@ if [ -d /etc/ssh/sshd_config.d ]; then
 fi
 
 if [ "$SSHD_RESTART_NEEDED" = "true" ]; then
-    sudo systemctl restart sshd
+    if sudo systemctl list-unit-files sshd.service &>/dev/null && sudo systemctl list-unit-files sshd.service | grep -q sshd; then
+        sudo systemctl restart sshd
+    else
+        sudo systemctl restart ssh
+    fi
     echo "[INFO] SSH password authentication enabled."
 fi
