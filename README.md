@@ -10,7 +10,7 @@ Deploy a Linux VM with an NFS Azure file share automatically mounted, with optio
 | Network Security Group | SSH (port 22) inbound rule |
 | Public IP + NIC | Static public IP attached to the VM |
 | Linux VM | Your chosen OS and SKU (Trusted Launch where supported) |
-| NFS File Share | SSD-tier managed file share (`Microsoft.FileShares/fileShares`) |
+| NFS File Share | SSD-tier managed file share (`Microsoft.FileShares/fileShares`, API `2026-06-01`). Encryption in Transit is required by default. |
 | Private Endpoint + DNS Zone | *(Only when `networkAccessMode=PrivateEndpoint`)* |
 | CustomScript Extension | Downloads and runs `mount-nfs-share.sh` to mount the share |
 
@@ -18,10 +18,9 @@ Deploy a Linux VM with an NFS Azure file share automatically mounted, with optio
 
 | OS Family | Versions | AZNFS EiT Support |
 |---|---|---|
-| Ubuntu | 24.04, 22.04, 20.04, 18.04 | ✅ |
-| RHEL | 9, 8 | ✅ |
-| SUSE SLES | 15 | ✅ |
-| Alma Linux | 9, 8 | ✅ |
+| Ubuntu | 24.04, 22.04, 20.04 | ✅ |
+| RHEL | 10, 9, 8 | ✅ |
+| SUSE SLES | 16, 15 | ✅ |
 | Oracle Linux | 8 | ✅ |
 | Azure Linux | 3 | ✅ |
 
@@ -78,7 +77,7 @@ az deployment group create \
 | `provisionedIOPerSec` | `0` | IOPS (0 = service default) |
 | `provisionedThroughputMiBPerSec` | `0` | Throughput in MiB/s (0 = service default) |
 | `networkAccessMode` | `ServiceEndpoint` | `ServiceEndpoint` or `PrivateEndpoint` |
-| `enableEncryptionInTransit` | `true` | Mount with TLS via aznfs |
+| `enableEncryptionInTransit` | `true` | EiT. When `true`, the share requires EiT (`encryptionInTransitRequired = Enabled`) and the VM mounts with TLS via aznfs. Set to `false` to use plain NFS, which also relaxes the share to not require EiT. |
 | `mountPath` | *(auto)* | Custom mount point (e.g., `/mnt/myshare`). Empty = `/mnt/<shareName>` |
 | `_artifactsLocation` | *(auto from URI)* | Base URL for script download |
 | `_artifactsLocationSasToken` | | SAS token (only for private blob storage) |
@@ -86,10 +85,9 @@ az deployment group create \
 ### Allowed `osImage` Values
 
 ```
-Ubuntu2404  Ubuntu2204  Ubuntu2004  Ubuntu1804
-RHEL9       RHEL8
-SLES15
-AlmaLinux9  AlmaLinux8
+Ubuntu2404  Ubuntu2204  Ubuntu2004
+RHEL10      RHEL9       RHEL8
+SLES16      SLES15
 OracleLinux8
 AzureLinux3
 ```

@@ -7,10 +7,9 @@
 # and AZNFS repository URL.
 #
 # Supported OS families (per AZNFS documentation):
-#   - Ubuntu (18.04, 20.04, 22.04, 24.04)
-#   - RHEL (8, 9)
-#   - SUSE SLES (15)
-#   - Alma Linux (8, 9)
+#   - Ubuntu (20.04, 22.04, 24.04)
+#   - RHEL (8, 9, 10)
+#   - SUSE SLES (15, 16)
 #   - Oracle Linux (8, 9)
 #   - Azure Linux (2, 3)
 #
@@ -90,14 +89,6 @@ case "$OS_ID" in
         NFS_CLIENT_PKG="nfs-client"
         ;;
 
-    almalinux)
-        PKG_MGR="yum"
-        # Alma Linux uses "alma" in the repo path
-        REPO_URL="https://packages.microsoft.com/config/alma/${OS_VERSION_MAJOR}/packages-microsoft-prod.rpm"
-        REPO_FORMAT="rpm"
-        NFS_CLIENT_PKG="nfs-utils"
-        ;;
-
     ol)
         PKG_MGR="yum"
         # Oracle Linux uses "rhel" repo path per Microsoft docs
@@ -117,7 +108,7 @@ case "$OS_ID" in
     *)
         echo "[ERROR] Unsupported OS: $OS_ID"
         echo "[ERROR] Supported distributions:"
-        echo "[ERROR]   ubuntu, rhel, centos, sles, almalinux, ol (Oracle), mariner, azurelinux"
+        echo "[ERROR]   ubuntu, rhel, centos, sles, ol (Oracle), mariner, azurelinux"
         exit 1
         ;;
 esac
@@ -419,7 +410,7 @@ df -h "$MOUNT_PATH"
 
 # ---------------------------------------------------------------------------
 # Ensure SSH password authentication is enabled
-# Some marketplace images (RHEL, Oracle, Alma) disable password auth by default
+# Some marketplace images (RHEL, Oracle) disable password auth by default
 # in sshd_config, overriding the Azure disablePasswordAuthentication setting.
 # ---------------------------------------------------------------------------
 SSHD_RESTART_NEEDED=false

@@ -56,12 +56,11 @@
         "Ubuntu2404",
         "Ubuntu2204",
         "Ubuntu2004",
-        "Ubuntu1804",
+        "RHEL10",
         "RHEL9",
         "RHEL8",
+        "SLES16",
         "SLES15",
-        "AlmaLinux9",
-        "AlmaLinux8",
         "OracleLinux8",
         "AzureLinux3"
       ],
@@ -109,7 +108,7 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Mount NFS share with TLS encryption via aznfs. If true and aznfs installation fails, the deployment will fail. If false, mounts with plain NFS."
+        "description": "Encryption in transit (EiT). When true (default), the share requires EiT (encryptionInTransitRequired = Enabled) and the VM mounts with TLS via the aznfs mount helper; if aznfs installation fails, the deployment fails. Set to false only to use plain NFS instead of aznfs, which also relaxes the share to not require EiT (encryptionInTransitRequired = Disabled)."
       }
     },
     "mountPath": {
@@ -222,10 +221,10 @@
         "sku": "20_04-lts-gen2",
         "version": "latest"
       },
-      "Ubuntu1804": {
-        "publisher": "canonical",
-        "offer": "UbuntuServer",
-        "sku": "18_04-lts-gen2",
+      "RHEL10": {
+        "publisher": "RedHat",
+        "offer": "RHEL",
+        "sku": "10-lvm-gen2",
         "version": "latest"
       },
       "RHEL9": {
@@ -240,22 +239,16 @@
         "sku": "8-lvm-gen2",
         "version": "latest"
       },
+      "SLES16": {
+        "publisher": "SUSE",
+        "offer": "sles-16-0-x86-64",
+        "sku": "gen2",
+        "version": "latest"
+      },
       "SLES15": {
         "publisher": "SUSE",
         "offer": "sles-15-sp5",
         "sku": "gen2",
-        "version": "latest"
-      },
-      "AlmaLinux9": {
-        "publisher": "almalinux",
-        "offer": "almalinux-x86_64",
-        "sku": "9-gen2",
-        "version": "latest"
-      },
-      "AlmaLinux8": {
-        "publisher": "almalinux",
-        "offer": "almalinux-x86_64",
-        "sku": "8-gen2",
         "version": "latest"
       },
       "OracleLinux8": {
@@ -273,7 +266,7 @@
     },
     "selectedImage": "[variables('imageMap')[parameters('osImage')]]",
 
-    "noTrustedLaunchImages": ["Ubuntu1804", "AzureLinux3"],
+    "noTrustedLaunchImages": ["AzureLinux3"],
     "supportsTrustedLaunch": "[not(contains(variables('noTrustedLaunchImages'), parameters('osImage')))]",
 
     "scriptUrl": "[uri(parameters('_artifactsLocation'), concat('mount-nfs-share.sh', parameters('_artifactsLocationSasToken')))]"
@@ -281,7 +274,7 @@
   "resources": [
     {
       "type": "Microsoft.Network/virtualNetworks",
-      "apiVersion": "2025-05-01",
+      "apiVersion": "2025-07-01",
       "name": "[variables('vnetName')]",
       "location": "[parameters('location')]",
       "properties": {
@@ -296,7 +289,7 @@
 
     {
       "type": "Microsoft.Network/publicIpAddresses",
-      "apiVersion": "2025-05-01",
+      "apiVersion": "2025-07-01",
       "name": "[variables('publicIpName')]",
       "location": "[parameters('location')]",
       "sku": {
@@ -314,7 +307,7 @@
 
     {
       "type": "Microsoft.Network/networkSecurityGroups",
-      "apiVersion": "2025-05-01",
+      "apiVersion": "2025-07-01",
       "name": "[variables('nsgName')]",
       "location": "[parameters('location')]",
       "properties": {
@@ -338,7 +331,7 @@
 
     {
       "type": "Microsoft.Network/networkInterfaces",
-      "apiVersion": "2025-05-01",
+      "apiVersion": "2025-07-01",
       "name": "[variables('nicName')]",
       "location": "[parameters('location')]",
       "dependsOn": [
@@ -373,7 +366,7 @@
     {
       "condition": "[variables('supportsTrustedLaunch')]",
       "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2024-07-01",
+      "apiVersion": "2025-11-01",
       "name": "[variables('vmName')]",
       "location": "[parameters('location')]",
       "dependsOn": [
@@ -425,7 +418,7 @@
     {
       "condition": "[not(variables('supportsTrustedLaunch'))]",
       "type": "Microsoft.Compute/virtualMachines",
-      "apiVersion": "2024-07-01",
+      "apiVersion": "2025-11-01",
       "name": "[variables('vmName')]",
       "location": "[parameters('location')]",
       "dependsOn": [
@@ -469,7 +462,7 @@
 
     {
       "type": "Microsoft.FileShares/fileShares",
-      "apiVersion": "2025-09-01-preview",
+      "apiVersion": "2026-06-01",
       "name": "[variables('fileShareName')]",
       "location": "[parameters('location')]",
       "dependsOn": [
@@ -485,7 +478,8 @@
         "publicAccessProperties": "[if(variables('useServiceEndpoint'), createObject('allowedSubnets', createArray(variables('defaultSubnetId'))), json('null'))]",
         "redundancy": "Local",
         "nfsProtocolProperties": {
-          "rootSquash": "NoRootSquash"
+          "rootSquash": "NoRootSquash",
+          "encryptionInTransitRequired": "[if(parameters('enableEncryptionInTransit'), 'Enabled', 'Disabled')]"
         }
       }
     },
@@ -493,7 +487,7 @@
     {
       "condition": "[variables('usePrivateEndpoint')]",
       "type": "Microsoft.Network/privateDnsZones",
-      "apiVersion": "2020-06-01",
+      "apiVersion": "2024-06-01",
       "name": "[variables('privateDnsZoneName')]",
       "location": "global"
     },
@@ -501,7 +495,7 @@
     {
       "condition": "[variables('usePrivateEndpoint')]",
       "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
-      "apiVersion": "2020-06-01",
+      "apiVersion": "2024-06-01",
       "name": "[concat(variables('privateDnsZoneName'), '/', variables('vnetName'), '-link')]",
       "location": "global",
       "dependsOn": [
@@ -519,7 +513,7 @@
     {
       "condition": "[variables('usePrivateEndpoint')]",
       "type": "Microsoft.Network/privateEndpoints",
-      "apiVersion": "2025-05-01",
+      "apiVersion": "2025-07-01",
       "name": "[variables('peName')]",
       "location": "[parameters('location')]",
       "dependsOn": [
@@ -547,7 +541,7 @@
     {
       "condition": "[variables('usePrivateEndpoint')]",
       "type": "Microsoft.Network/privateEndpoints/privateDnsZoneGroups",
-      "apiVersion": "2025-05-01",
+      "apiVersion": "2025-07-01",
       "name": "[concat(variables('peName'), '/default')]",
       "dependsOn": [
         "[resourceId('Microsoft.Network/privateEndpoints', variables('peName'))]",
@@ -567,7 +561,7 @@
 
     {
       "type": "Microsoft.Compute/virtualMachines/extensions",
-      "apiVersion": "2024-07-01",
+      "apiVersion": "2025-11-01",
       "name": "[concat(variables('vmName'), '/mount-fileshare')]",
       "location": "[parameters('location')]",
       "dependsOn": [
@@ -586,7 +580,7 @@
           ]
         },
         "protectedSettings": {
-          "commandToExecute": "[concat('bash mount-nfs-share.sh \"', if(parameters('enableEncryptionInTransit'), 'true', 'false'), '\" \"', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').hostName, '\" \"', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').mountName, '\" \"', if(empty(parameters('mountPath')), concat('/mnt/', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').mountName), parameters('mountPath')), '\"')]"
+          "commandToExecute": "[concat('bash mount-nfs-share.sh \"', if(parameters('enableEncryptionInTransit'), 'true', 'false'), '\" \"', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2026-06-01').hostName, '\" \"', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2026-06-01').mountName, '\" \"', if(empty(parameters('mountPath')), concat('/mnt/', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2026-06-01').mountName), parameters('mountPath')), '\"')]"
         }
       }
     }
@@ -606,11 +600,11 @@
     },
     "fileShareHostName": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').hostName]"
+      "value": "[reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2026-06-01').hostName]"
     },
     "mountPath": {
       "type": "string",
-      "value": "[if(empty(parameters('mountPath')), concat('/mnt/', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2025-09-01-preview').mountName), parameters('mountPath'))]"
+      "value": "[if(empty(parameters('mountPath')), concat('/mnt/', reference(resourceId('Microsoft.FileShares/fileShares', variables('fileShareName')), '2026-06-01').mountName), parameters('mountPath'))]"
     },
     "networkAccessMode": {
       "type": "string",
